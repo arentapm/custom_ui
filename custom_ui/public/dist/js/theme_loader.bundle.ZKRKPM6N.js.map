@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../apps/custom_ui/custom_ui/public/js/theme_loader.js"],
+  "sourcesContent": ["document.addEventListener(\"DOMContentLoaded\", function () {\n  if (window.frappe && typeof frappe.call === \"function\") {\n    console.log(\"\u2705 DOM dan Frappe siap\");\n\n    frappe.call(\"custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme\")\n      .then(r => {\n        const data = r.message;\n        console.log(\"\uD83C\uDF08 Tema aktif:\", data);\n\n        const variables = data.variables || {};\n        const root = document.documentElement;\n        Object.keys(variables).forEach(key => {\n          root.style.setProperty(key, variables[key]);\n        });\n\n        console.log(\"\u2705 Tema berhasil diterapkan di global system\");\n      })\n      .catch(err => {\n        console.error(\"\u274C Gagal memuat tema:\", err);\n      });\n  } else {\n    console.warn(\"\u26A0\uFE0F frappe.call belum tersedia. Tunggu hingga Frappe selesai loading.\");\n  }\n});\n"],
+  "mappings": ";;AAAA,WAAS,iBAAiB,oBAAoB,WAAY;AACxD,QAAI,OAAO,UAAU,OAAO,OAAO,SAAS,YAAY;AACtD,cAAQ,IAAI,4BAAuB;AAEnC,aAAO,KAAK,gEAAgE,EACzE,KAAK,OAAK;AACT,cAAM,OAAO,EAAE;AACf,gBAAQ,IAAI,yBAAkB,IAAI;AAElC,cAAM,YAAY,KAAK,aAAa,CAAC;AACrC,cAAM,OAAO,SAAS;AACtB,eAAO,KAAK,SAAS,EAAE,QAAQ,SAAO;AACpC,eAAK,MAAM,YAAY,KAAK,UAAU,IAAI;AAAA,QAC5C,CAAC;AAED,gBAAQ,IAAI,kDAA6C;AAAA,MAC3D,CAAC,EACA,MAAM,SAAO;AACZ,gBAAQ,MAAM,6BAAwB,GAAG;AAAA,MAC3C,CAAC;AAAA,IACL,OAAO;AACL,cAAQ,KAAK,gFAAsE;AAAA,IACrF;AAAA,EACF,CAAC;",
+  "names": []
+}

@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-29 18:52:45.407725",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "theme_name",
+  "base_warna"
+ ],
+ "fields": [
+  {
+   "fieldname": "theme_name",
+   "fieldtype": "Data",
+   "label": "Theme Name"
+  },
+  {
+   "fieldname": "base_warna",
+   "fieldtype": "Color",
+   "label": "Base Warna"
+  },
+  {
+    "fieldname": "variables",
+    "fieldtype": "Code",
+    "label": "Variables",
+    "options": "JSON"
+  },
+  {
+    "label": "Is Active",
+    "fieldname": "is_active",
+    "fieldtype": "Check",
+    "default": 0
+  },
+  {
+    "fieldname": "css_template",
+    "fieldtype": "Code",
+    "label": "CSS Template",
+    "options": "CSS"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-29 18:52:45.407725",
+ "modified_by": "Administrator",
+ "module": "custom_ui",
+ "name": "UI Theme",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

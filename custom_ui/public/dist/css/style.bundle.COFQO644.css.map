@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../../../../tmp/tmp-18495-e1Y8Oe9hgZOM/custom_ui/custom_ui/public/css/style.bundle.css"],
+  "sourcesContent": [":root {\n  --bg-color: #ffffff;\n  --text-color: #000000;\n  --font-family: 'Inter', sans-serif;\n  --header-bg: #29CD42;\n  --header-text: #ffffff;\n  --btn-bg-color: #29CD42;\n  --btn-text-color: #ffffff;\n  --btn-hover-bg: #1f7a2a;\n  --link-color: #29CD42;\n}\n\n/* Lalu gunakan variabel ini di CSS seperti biasa */\n\nbody {\n  background-color: var(--bg-color);\n  color: var(--text-color);\n  font-family: var(--font-family);\n}\n\n.header {\n  background-color: var(--header-bg);\n  color: var(--header-text);\n}\n\nbutton, .btn {\n  background-color: var(--btn-bg-color);\n  color: var(--btn-text-color);\n  border: none;\n  cursor: pointer;\n  transition: background-color 0.3s ease;\n}\n\nbutton:hover, .btn:hover {\n  background-color: var(--btn-hover-bg);\n}\n\na {\n  color: var(--link-color);\n}\n"],
+  "mappings": ";AAAA;AACE;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AAAA;AAKF;AACE;AACA;AACA;AAAA;AAGF;AACE;AACA;AAAA;AAGF;AAAA;AACE;AACA;AACA;AACA;AACA;AAAA;AAGF;AAAA;AACE;AAAA;AAGF;AACE;AAAA;",
+  "names": []
+}

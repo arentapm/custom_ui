@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2025-05-29 18:54:00.120378",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2025-05-29 18:54:00.120378",
+ "modified_by": "Administrator",
+ "module": "custom_ui",
+ "name": "custom_ui",
+ "owner": "Administrator",
+ "page_name": "custom_ui",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "custom_ui"
+}

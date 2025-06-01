@@ -5,6 +5,14 @@ app_description = "custom_ui"
 app_email = "arentaputri388@gmail.com"
 app_license = "mit"
 
+app_include_js = [
+    "/assets/custom_ui/js/theme_loader.js"
+]
+
+app_include_css = [
+    "/assets/custom_ui/css/style.bundle.css",
+]
+
 # Apps
 # ------------------
 
