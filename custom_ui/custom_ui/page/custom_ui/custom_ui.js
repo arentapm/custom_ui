@@ -1,11 +1,3 @@
-frappe.pages['custom_ui'].on_page_load = function(wrapper) {
-	var page = frappe.ui.make_app_page({
-		parent: wrapper,
-		title: 'custom_ui',
-		single_column: true
-	});
-}
-
 frappe.pages['custom_ui'].on_page_load = function (wrapper) {
     frappe.ui.make_app_page({
         parent: wrapper,
@@ -39,83 +31,105 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
 
         const { createApp } = Vue;
 
+        function getPrimaryColor(vars = {}) {
+        return (
+            vars["--primary-color"] ||
+            vars.base_color ||
+            vars.primary_color ||
+            "#29CD42"
+        );
+        }
+
+        function isLightColor(hex) {
+        hex = hex.replace("#", "");
+        if (hex.length === 3) hex = hex.split("").map((c) => c + c).join("");
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        return luminance > 150;
+        }
+
+        function shadeColor(hex, pct) {
+        let r = parseInt(hex.slice(1, 3), 16);
+        let g = parseInt(hex.slice(3, 5), 16);
+        let b = parseInt(hex.slice(5, 7), 16);
+        r = Math.min(255, Math.max(0, Math.round((r * (100 + pct)) / 100)));
+        g = Math.min(255, Math.max(0, Math.round((g * (100 + pct)) / 100)));
+        b = Math.min(255, Math.max(0, Math.round((b * (100 + pct)) / 100)));
+        return (
+            "#" +
+            r.toString(16).padStart(2, "0") +
+            g.toString(16).padStart(2, "0") +
+            b.toString(16).padStart(2, "0")
+        ).toLowerCase();
+        }
+
+        function genVars(base) {
+        const light = isLightColor(base);
+        return {
+            "--primary-color": base,
+            "--btn-primary-bg": base,
+            "--btn-primary-border": base,
+            "--btn-primary-color": light ? "#000000" : "#ffffff",
+            "--btn-primary-hover-bg": shadeColor(base, light ? -10 : 10),
+            "--badge-bg": base,
+            "--badge-color": light ? "#000000" : "#ffffff",
+            "--btn-primary-active-bg": shadeColor(base, light ? -10 : 10),
+        };
+        }
+
         createApp({
             data() {
                 return {
                     themes: [],
                     deleteMode: false,
-                    showPreviewDialog: false,
-                    showSwitcherDialog: false,
-                    staticThemes: [
-                        {
-                            theme_name: 'Light Theme',
-                            variables: {
-                                '--bg-color': '#ffffff',
-                                '--text-color': '#1f2937',
-                                '--card-bg': '#f3f4f6',
-                                '--card-shadow': 'rgba(0,0,0,0.1)',
-                                '--header-bg': '#f3f4f6',
-                                '--header-text': '#1f2937',
-                                '--link-color': '#3b82f6',
-                                '--btn-hover-bg': '#e0e7ff'
-                            }
-                        },
-                        {
-                            theme_name: 'Dark Theme',
-                            variables: {
-                                '--bg-color': '#1f2937',
-                                '--text-color': '#ffffff',
-                                '--card-bg': '#374151',
-                                '--card-shadow': 'rgba(0,0,0,0.5)',
-                                '--header-bg': '#374151',
-                                '--header-text': '#ffffff',
-                                '--link-color': '#3b82f6',
-                                '--btn-hover-bg': '#4b5563'
-                            }
-                        }
-                    ]
+                    currentTheme: null,
+                    tickIcon: frappe.utils.icon("tick", "xs"),           
                 };
             },
             async created() {
-                this.loadActiveTheme();
-                this.boundHandleKeydown = this.handleShortcut.bind(this);
-                window.addEventListener('keydown', this.boundHandleKeydown);
-                window.removeEventListener('keydown', this.boundHandleKeydown, true);
-
                 await this.fetchThemes();
-
                 const route = frappe.get_route();
                 const themeNameParam = route.length > 1 ? decodeURIComponent(route[1]) : null;
                 if (themeNameParam) {
                     const matchedTheme = this.themes.find(t => t.theme_name === themeNameParam);
-                    if (matchedTheme) this.applyTheme(matchedTheme);
+                    if (matchedTheme) await this.applyTheme(matchedTheme);
+                }
+
+                // Setup event realtime untuk update tema otomatis
+                frappe.realtime.on("custom_theme_updated", async ({ theme_name }) => {
+                    console.log("🔔 Tema baru diterapkan:", theme_name);
+                    await this.loadActiveTheme();
+                });
+
+                // Tambah listener keyboard jika ada fungsi handle (asumsi boundHandleKeydown sudah didefinisikan)
+                window.addEventListener('keydown', this.boundHandleKeydown);
+                
+                // Listener route change untuk apply tema (jika ada perubahan route)
+                if (frappe.router) {
+                    frappe.router.on("change", () => {
+                        setTimeout(() => {
+                            this.loadActiveTheme();
+                        }, 200);
+                    });
                 }
             },
 
-            mounted() {
-                const script = document.createElement("script");
-                script.src = "/assets/custom_ui/js/theme_loader.js";
-                script.onload = () => {
-                    console.log("Custom shortcuts loaded!");
-                }; document.head.appendChild(script);
+            async mounted() {
+                // Load tambahan script theme_loader.js jika perlu
+                // const script = document.createElement("script");
+                // script.src = "/assets/custom_ui/js/theme_loader.js";
+                // script.onload = () => {
+                //     console.log("Custom shortcuts loaded!");
+                // };
+                // document.head.appendChild(script);
 
+                await this.loadActiveTheme();
 
-                window.customThemePreviewDialog = () => {
-                    this.showThemePreviewDialog();
-                };
-                frappe.call('custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme')
-                    .then(res => {
-                        const activeTheme = res.message;
-                        if (activeTheme && activeTheme.variables){
-                            this.applyActiveTheme(activeTheme);
-                        }
-                    })
-                    .catch(err => {
-                        console.warn("Gagal mengambil tema aktif:", err);
-                    });
-
+                // Blokir search default ERPNext, jaga terus dengan interval
                 setTimeout(() => {
-                    if (frappe.ui?.keys?.unbind){
+                    if (frappe.ui?.keys?.unbind) {
                         frappe.ui.keys.unbind('ctrl+shift+g');
                     }
                     const disableSearchDialog = () => {
@@ -131,46 +145,9 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     };
                     disableSearchDialog();
                     this._searchBlockInterval = setInterval(disableSearchDialog, 2000);
-                    console.log("Search bawaan ERPNext diblokir & dijaga terus menerus")
+                    console.log("Search bawaan ERPNext diblokir & dijaga terus menerus");
                 }, 300);
-               frappe.call({
-                    method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_file_content",
-                    args: {
-                        file_name: "style.bundle.css"
-                    },
-                    callback: function (response) {
-                        const rawCss = typeof response.message?.message === 'string'
-                            ? response.message.message
-                            : null;
-
-                        if (!rawCss) {
-                            console.error("CSS content tidak valid atau bukan string:", response.message);
-                            return;
-                        }
-
-                        const rootMatch = rawCss.match(/:root\s*{([^}]*)}/);
-                        if (!rootMatch) {
-                            console.error("Tidak menemukan blok :root dalam CSS:", rawCss);
-                            return;
-                        }
-
-                        const varsBlock = rootMatch[1].trim();
-                        const lines = varsBlock.split('\n');
-
-                        lines.forEach(line => {
-                            const parts = line.split(':');
-                            if (parts.length === 2) {
-                                const key = parts[0].trim();
-                                const value = parts[1].trim().replace(';', '');
-                                document.documentElement.style.setProperty(key, value);
-                            }
-                        });
-
-                        console.log("Tema berhasil diterapkan");
-                    }
-                });
             },
-
 
             beforeUnmount() {
                 if ( this.searchBlockInterval) {
@@ -180,145 +157,129 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
             },
 
             methods: {
-				handleShortcut(e) {
-					const key = e.key.toLowerCase();
-					if (e.ctrlKey && e.shiftKey && key === 'g') {
-						e.preventDefault();
-						e.stopImmediatePropagation();
-						this.showThemePreviewDialog();
-						return;
-					}
-					if (e.ctrlKey && e.altKey && key === 't') {
-						e.preventDefault();
-						this.showThemePreviewDialog();
-					}
-				},
-				showThemePreviewDialog() {
-					if (this.currentThemeDialog && this.currentThemeDialog.is_visible) {
-						this.currentThemeDialog.hide();
-						return;
-					}
-					const d = new frappe.ui.Dialog({
-						title: 'Theme Preview',
-						size: 'large',
-						fields: [
-							{ fieldtype: 'HTML', fieldname: 'theme_preview_area' }
-						],
-						primary_action_label: 'Close',
-						primary_action() { d.hide(); },
-						secondary_action_label: 'Add Theme',
-						secondary_action: () => {
-							d.hide();
-							this.openAddDialog();
-						}
-					});
-					this.currentThemeDialog = d;
-					d.show();
-					setTimeout(() => {
-						const container = d.get_field('theme_preview_area').$wrapper.get(0);
-						if (!container) return;
-						const allThemes = [...this.staticThemes, ...this.themes];
-						let html = '<div style="display: flex; gap: 20px; flex-wrap: wrap; padding: 10px;">';
-						for (let i = 0; i < allThemes.length; i++) {
-							const theme = allThemes[i];
-							const title = theme.theme_name + (theme.name ? ' (Dynamic)' : ' (Static)');
-							const vars = theme.variables;
-							html += `
-								<div style="width:200px;height:200px;border-radius:8px;overflow:hidden;box-shadow:0 4px 8px ${vars['--card-shadow'] || 'rgba(0,0,0,0.1)'};background-color:${vars['--bg-color']};color:${vars['--text-color']};font-family:sans-serif;display:flex;flex-direction:column;">
-									<div style="background-color:${vars['--header-bg']};color:${vars['--header-text']};padding:12px;font-weight:bold;display:flex;align-items:center;gap:10px;">
-										<div style="width:32px;height:32px;border-radius:50%;background-color:${vars['--btn-hover-bg']};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;">🎨</div>
-										${title}
-									</div>
-									<div style="padding:12px;background-color:${vars['--card-bg']};flex:1;">
-										<button class="apply-theme-btn" data-theme-index="${i}" data-theme-type="${theme.name ? 'dynamic' : 'static'}" style="background-color:${vars['--btn-hover-bg']};color:${vars['--text-color']};border:none;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer;">Apply</button>
-										<a href="#" style="color:${vars['--link-color']};font-size:12px;text-decoration:underline;">Lihat selengkapnya</a>
-									</div>
-								</div>`;
-						}
-						html += '</div>';
-						container.innerHTML = html;
-						container.querySelectorAll('.apply-theme-btn').forEach(btn => {
-							btn.addEventListener('click', () => {
-								const index = parseInt(btn.getAttribute('data-theme-index'));
-								const selectedTheme = allThemes[index];
-								this.applyTheme(selectedTheme);
-								d.hide();
-							});
-						});
-					}, 0);
-				},
+
 				async fetchThemes() {
-					try {
-						const res = await frappe.call({
-							method: 'frappe.client.get_list',
-							args: {
-								doctype: 'UI Theme',
-								fields: ['name', 'theme_name'],
-								limit_page_length: 100
-							}
-						});
-						for (let theme of res.message) {
-							if (!theme.theme_name) {
-								console.warn("Theme name kosong atau tidak ditemukan:", theme);
-								theme.variables = {};
-								continue;  // skip ke theme berikutnya
-							}
-							try {
-								const doc = await frappe.call({
-									method: 'custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_ui_theme',
-									args: { theme_name: theme.theme_name }
-								});
-								theme.variables = doc.message?.variables || {};
-							} catch (innerError) {
-								console.error(`Error fetching details for theme: ${theme.theme_name}`, innerError);
-								theme.variables = {};
-							}
-						}
-						this.themes = res.message;
-					} catch (error) {
-						frappe.msgprint('Failed to fetch themes.');
-						console.error(error);
-					}
-				},
+                    try {
+                        const {message: list } = await frappe.call({
+                            method: "frappe.client.get_list",
+                            args: {
+                                doctype: "UI Theme",
+                                fields: ["name", "is_active"],
+                                limit_page_length: 100
+                            }
+                        })
+                        const fetchedThemes = [];
+
+                        for (const { name: theme_name, is_active} of list) {
+                            let variables = {};
+                            let base_color = "#29CD42";
+                            try {
+                            const { message: detail } = await frappe.call({
+                                method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_ui_theme",
+                                args: { theme_name }
+                            });
+                            base_color = detail.base_color || base_color;
+                            variables  = detail.variables   || {};
+                            if (typeof variables === "string") {
+                                variables = JSON.parse(variables || "{}");
+                            }
+                        } catch (e) {
+                            console.error(`❌ Gagal ambil detail theme ${theme_name}`, e);
+                        }
+
+                        /* ── fallback jika variables kosong ───────────────── */
+                        if (!Object.keys(variables).length) {
+                            variables = genVars(base_color);
+                        }
+
+                        /* ── buat inline CSS vars utk thumbnail ───────────── */
+                        const generatedVars = genVars(base_color);
+                        const cssVars = Object.entries(generatedVars)
+                            .map(([key, value]) => `${key}: ${value}`)
+                            .join("; ");
+
+                        fetchedThemes.push({
+                            name: theme_name,
+                            theme_name,
+                            is_active: is_active || 0,
+                            variables,
+                            cssVars,
+                            isChecked: false
+                        });
+                    }
+                        this.themes = fetchedThemes;
+                    } catch (error) {
+                        frappe.msgprint('❌ Gagal mengambil daftar theme.');
+                        console.error(error);
+                    }
+                },
 				async loadActiveTheme() {
                     try {
                         const themeResponse = await frappe.call({
-                            method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme"
+                        method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme"
                         });
                         const theme = themeResponse.message;
+                        if (!theme || !theme.theme_name) return;
 
-                        if (!theme?.theme_name || !theme.variables) {
-                            console.warn("Tema tidak lengkap atau tidak ada.");
-                            return;
+                        const vars = Object.keys(theme.variables || {}).length
+                            ? theme.variables
+                            : genVars(theme.base_color || "#29CD42");
+                        this._removeInjectedThemeStyles();
+                        this._applyCssVariables(theme.variables);
+
+                        } catch (error) {
+                            console.warn("Gagal memuat tema aktif:", error);
                         }
+                    },
 
-                        // Inject CSS jika ada
-                        if (theme.css_template) {
-                            document.querySelectorAll('style[data-theme-style="true"]').forEach(e => e.remove());
-                            const style = document.createElement("style");
-                            style.innerHTML = theme.css_template;
-                            style.setAttribute("data-theme-style", "true");
-                            document.head.appendChild(style);
-                            console.log("Dynamic CSS berhasil diterapkan.");
+                    _injectStyle(cssContent, styleId) {
+                    // Hapus dulu style lama jika ada
+                    const oldStyle = document.getElementById(styleId);
+                    if (oldStyle) oldStyle.remove();
+
+                    // Buat tag style baru dan inject ke head
+                    const styleTag = document.createElement("style");
+                    styleTag.id = styleId;
+                    styleTag.innerText = cssContent;
+                    document.head.appendChild(styleTag);
+                    },
+
+                    _removeInjectedThemeStyles() {
+                    // Bersihkan semua style yang punya atribut data-theme-style atau id 'active-theme-style'
+                    document.querySelectorAll('style[data-theme-style="true"], style#active-theme-style').forEach(e => e.remove());
+                    },
+
+                    _applyCssVariables(variables) {
+                    if (!variables || typeof variables !== "object") return;
+
+                    Object.entries(variables).forEach(([key, val]) => {
+                        const value = val || "#000000";
+                        // key harus diawali '--' sesuai konvensi CSS variable
+                        if (!key.startsWith("--")) {
+                        console.warn(`⚠️ Variable CSS tidak valid (harus mulai dengan --): ${key}`);
+                        return;
                         }
+                        document.documentElement.style.setProperty(key, value);
+                    });
+                    },
 
-                        // Apply variables
-                        await this.applyActiveTheme(theme);
+                    // Contoh cara integrasi realtime di mounted() atau created()
+                    mounted() {
+                    this.loadActiveTheme();
 
-                    } catch (error) {
-                        console.warn("Gagal memuat tema aktif:", error);
-                    }
-                },
+                    // Listen realtime event dari backend supaya tema auto refresh saat berubah
+                    frappe.realtime.on("custom_theme_updated", async ({ theme_name }) => {
+                        console.log("🔔 Tema baru diterapkan:", theme_name);
+                        await this.loadActiveTheme();
+                    });
+                    },
 
                 async applyTheme(theme) {
                     if (this.deleteMode) {
                         theme.isChecked = !theme.isChecked;
                         return;
                     }
-                    // Apply variables langsung
                     await this.applyActiveTheme(theme);
-
-                    // Simpan tema aktif ke backend
                     await frappe.call({
                         method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.set_active_theme",
                         args: { theme_name: theme.theme_name }
@@ -327,189 +288,175 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     // Update UI
                     this.themes.forEach(t => t.isChecked = false);
                     theme.isChecked = true;
+                    this.currentTheme = theme.name;
                     frappe.show_alert({ message: `${theme.theme_name} applied`, indicator: "green" });
                     frappe.set_route("custom_ui", encodeURIComponent(theme.theme_name));
                 },
 
                 async applyActiveTheme(theme) {
-                    if (theme?.variables) {
-                        for (const [key, val] of Object.entries(theme.variables)) {
-                            const value = val || '#000000';
-                            document.documentElement.style.setProperty(key, val);
+                    const vars =
+                        Object.keys(theme.variables || {}).length
+                          ? theme.variables
+                          : genVars(theme.base_color || "#29CD42");
+                    
+                      // ② pakai applyTheme() dari theme_loader.js
+                      //    -> otomatis set data-custom-theme + inject style + force checkbox
+                      if (typeof applyTheme === "function") {
+                          applyTheme(vars);
+                       } else {
+                          console.error("applyTheme() not found; pastikan theme_loader.js sudah termuat");
+                      }
+                    
+                      // ③ simpan ke localStorage (opsional)
+                      localStorage.setItem("active_theme_variables", JSON.stringify(vars));
+                    
+                      console.log(`✅ Tema '${theme.theme_name}' diterapkan via applyTheme`);
+                    },
+                
+                async openAddDialog() {
+                const dialog = new frappe.ui.Dialog({
+                    title: 'Add New Theme',
+                    fields: [
+                    { label: 'Theme Name', fieldname: 'theme_name', fieldtype: 'Data', reqd: 1 },
+                    { label: 'Base Color', fieldname: 'base_color', fieldtype: 'Color', default: '#3b82f6' }
+                    ],
+                    primary_action_label: 'Save',
+                    primary_action: async (values) => {
+                    // Panggil generateDerivedColors langsung pakai base_color dari input user
+                    const variables = genVars(values.base_color);
+
+                    await frappe.call({
+                        method: 'frappe.client.insert',
+                        args: {
+                        doc: {
+                            doctype: 'UI Theme',
+                            theme_name: values.theme_name,
+                            variables: JSON.stringify(variables),
+                            base_color: values.base_color
                         }
+                        }
+                    });
+                    dialog.hide();
+                    frappe.show_alert('Theme added!', 'green');
+                    await this.fetchThemes();
                     }
-                    if (theme?.theme_name) {
-                        const oldStyle = document.getElementById('active-theme-style');
-                        if (oldStyle) oldStyle.remove();
-                        const styleTag = document.createElement('style');
-                        styleTag.id = 'active-theme-style';
-                        styleTag.innerText = theme.css_template;
-                        document.head.appendChild(styleTag);
-                    }
+                });
+                dialog.show();
                 },
-				async openAddDialog() {
-					const dialog = new frappe.ui.Dialog({
-						title: 'Add New Theme',
-						fields: [
-							{ label: 'Theme Name', fieldname: 'theme_name', fieldtype: 'Data', reqd: 1 },
-							{ label: 'Base Color', fieldname: 'base_color', fieldtype: 'Color', default: '#3b82f6' }
-						],
-						primary_action_label: 'Save',
-						primary_action: async (values) => {
-							const lighten = (hex, percent) => {
-								let num = parseInt(hex.replace('#',''),16),
-									r = (num >> 16) + Math.round(255 * percent),
-									g = ((num >> 8) & 0x00FF) + Math.round(255 * percent),
-									b = (num & 0x0000FF) + Math.round(255 * percent);
-								r = Math.min(255, Math.max(0, r));
-								g = Math.min(255, Math.max(0, g));
-								b = Math.min(255, Math.max(0, b));
-								return `#${(r << 16 | g << 8 | b).toString(16).padStart(6,'0')}`;
-							};
-							const variables = {
-								'--bg-color': '#ffffff',
-								'--text-color': '#1f2937',
-								'--card-bg': lighten(values.base_color, 0.8),
-								'--card-shadow': 'rgba(0,0,0,0.1)',
-								'--header-bg': lighten(values.base_color, 0.6),
-								'--header-text': '#1f2937',
-								'--link-color': values.base_color,
-								'--btn-hover-bg': lighten(values.base_color, 0.9)
-							};
-							await frappe.call({
-								method: 'frappe.client.insert',
-								args: {
-									doc: {
-										doctype: 'UI Theme',
-										theme_name: values.theme_name,
-										variables: JSON.stringify(variables)
-									}
-								}
-							});
-							dialog.hide();
-							frappe.show_alert('Theme added!', 'green');
-							await this.fetchThemes();
-						}
-					});
-					dialog.show();
-				},
 				toggleDeleteMode() {
 					this.deleteMode = !this.deleteMode;
 				},
 				async deleteSelected() {
-					const selected = this.themes.filter(t => t.isChecked);
-					if (!selected.length) return;
-					const confirmDialog = new frappe.ui.Dialog({
-						title: "Confirm Deletion",
-						indicator: "red",
-						fields: [{ fieldtype: "HTML", options: `<p>Are you sure you want to delete <strong>${selected.length}</strong> selected theme(s)? This action cannot be undone.</p>` }],
-						primary_action_label: "Delete",
-						primary_action: async () => {
-							confirmDialog.hide();
-							for (const theme of selected) {
-								await frappe.call({
-									method: 'frappe.client.delete',
-									args: {
-										doctype: 'UI Theme',
-										name: theme.name
-									}
-								});
-							}
-							frappe.show_alert('Themes deleted!', 'red');
-							this.deleteMode = false;
-							await this.fetchThemes();
-						}
-					});
-					confirmDialog.show();
-				}
+                    const selected = this.themes.filter(t => t.isChecked);
+                    if (!selected.length) return;
+
+                    const confirmDialog = new frappe.ui.Dialog({
+                        title: "Confirm Deletion",
+                        indicator: "red",
+                        fields: [{
+                            fieldtype: "HTML",
+                            options: `<p>Are you sure you want to delete <strong>${selected.length}</strong> selected theme(s)? This action cannot be undone.</p>`
+                        }],
+                        primary_action_label: "Delete",
+                        primary_action: async () => {
+                            confirmDialog.hide();
+
+                            for (const theme of selected) {
+                                try {
+                                    await frappe.call({
+                                        method: 'frappe.client.delete',
+                                        args: {
+                                            doctype: 'UI Theme',
+                                            name: theme.name    // ← ini sekarang pasti valid karena == theme_name
+                                        }
+                                    });
+                                    console.log(`✅ Theme ${theme.name} deleted`);
+                                } catch (e) {
+                                    console.error(`❌ Gagal hapus tema ${theme.name}:`, e.message);
+                                    frappe.msgprint(`Gagal hapus tema "${theme.name}": ${e.message}`);
+                                }
+                            }
+
+                            frappe.show_alert('Themes deleted!', 'red');
+                            this.deleteMode = false;
+                            await this.fetchThemes();
+                        }
+                    });
+
+                    confirmDialog.show();
+                }
 			},
             template: `
                 <div class="space-y-6">
-                    <h2 class="text-xl font-semibold">Available Themes</h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <div
-                            v-for="(theme, i) in staticThemes"
-                            :key="'static-' + i"
-                            class="w-40 h-40 rounded-lg border shadow overflow-hidden cursor-pointer"
-                            @click="applyTheme(theme)"
-                            :style="{
-                                backgroundColor: theme.variables['--bg-color'],
-                                color: theme.variables['--text-color']
-                            }"
-                        >
-                            <div class="px-2 py-1 font-semibold" :style="{ backgroundColor: theme.variables['--header-bg'], color: theme.variables['--header-text'] }">
-                                {{ theme.theme_name }}
-                            </div>
-                            <div class="p-2 flex h-full" :style="{ backgroundColor: theme.variables['--card-bg'], color: theme.variables['--text-color'] }">
-                                <div class="w-1/4 space-y-1">
-                                    <div class="h-3 rounded bg-gray-300 dark:bg-gray-700"></div>
-                                    <div class="h-3 rounded bg-gray-300 dark:bg-gray-700"></div>
-                                    <div class="h-3 rounded bg-gray-300 dark:bg-gray-700"></div>
-                                </div>
-                                <div class="w-3/4 pl-2 space-y-2 text-xs">
-                                    <div class="h-3 w-2/3 bg-gray-200 dark:bg-gray-600 rounded"></div>
-                                    <div class="h-3 w-1/2 bg-gray-200 dark:bg-gray-600 rounded"></div>
-                                    <a href="#" class="underline inline-block" :style="{ color: theme.variables['--link-color'] }">Link Preview</a>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Toolbar -->
+                    <div class="flex items-center gap-2 mb-2">
+                    <button class="btn btn-primary" @click="openAddDialog">+ Add Theme</button>
+
+                    <button class="btn"
+                            :class="deleteMode ? 'btn-danger' : 'btn-outline-danger'"
+                            @click="toggleDeleteMode">
+                        {{ deleteMode ? 'Cancel Delete' : 'Delete Themes' }}
+                    </button>
+
+                    <button v-if="deleteMode"
+                            class="btn btn-danger"
+                            @click="deleteSelected">
+                        Confirm Delete
+                    </button>
                     </div>
 
-                    <div class="flex justify-between items-center">
-                        <div class="space-x-2">
-                            <button class="btn btn-danger" @click="toggleDeleteMode">
-                                {{ deleteMode ? 'Cancel Delete' : 'Delete Themes' }}
-                            </button>
-                            <button v-if="deleteMode" class="btn btn-danger" @click="deleteSelected">Confirm Delete</button>
-                            <button class="btn btn-primary" @click="openAddDialog">+ Add Theme</button>
-                        </div>
-                    </div>
-
-                    <h2 class="text-xl font-semibold">Custom Themes</h2>
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <div
-                            v-for="theme in themes"
-                            :key="theme.name"
-                            class="relative w-40 h-40 rounded-lg border shadow cursor-pointer overflow-hidden"
-                            :style="{
-                                backgroundColor: theme.variables['--bg-color'],
-                                color: theme.variables['--text-color'],
-                                borderColor: theme.isChecked ? deleteMode ? 'red' : 'blue' : theme.variables['--card-shadow']
-                            }"
-                            :class="{
-                                'ring-2 ring-blue-300': theme.isChecked && !deleteMode,
-                                'ring-2 ring-red-300': theme.isChecked && deleteMode
-                            }"
-                            @click="applyTheme(theme)"
-                        >
-                            <div class="absolute inset-0 flex flex-col">
-                                <div class="px-2 py-1 font-semibold" :style="{ backgroundColor: theme.variables['--header-bg'], color: theme.variables['--header-text'] }">
-                                    {{ theme.theme_name }}
-                                    <input 
-                                        v-if="deleteMode"
-                                        type="checkbox"
-                                        @click.stop
-                                        class="ml-2"
-                                        v-model="theme.isChecked"
-                                    />
-                                </div>
-                                <div class="p-2 flex flex-1" :style="{ backgroundColor: theme.variables['--card-bg'], color: theme.variables['--text-color'] }">
-                                    <div class="w-1/4 space-y-1">
-                                        <div class="h-3 rounded bg-gray-300 dark:bg-gray-700"></div>
-                                        <div class="h-3 rounded bg-gray-300 dark:bg-gray-700"></div>
-                                        <div class="h-3 rounded bg-gray-300 dark:bg-gray-700"></div>
-                                    </div>
-                                    <div class="w-3/4 pl-2 space-y-2 text-xs">
-                                        <div class="h-3 w-2/3 bg-gray-200 dark:bg-gray-600 rounded"></div>
-                                        <div class="h-3 w-1/2 bg-gray-200 dark:bg-gray-600 rounded"></div>
-                                        <a href="#" class="underline inline-block" :style="{ color: theme.variables['--link-color'] }">Link Preview</a>
-                                    </div>
-                                </div>
+                    <div v-for="theme in themes"
+                        :key="theme.name"
+                        class="cursor-pointer select-none"
+                        @click="applyTheme(theme)">
+
+                        <!-- kartu -->
+                        <div class="theme-thumb w-full h-40 rounded-lg shadow border relative overflow-hidden"
+                            :class="currentTheme === theme.name ? 'ring-2 ring-blue-400' : ''"
+                            :style="theme.cssVars">
+
+                        <!-- centang untuk tema aktif -->
+                        <div class="absolute top-1 right-1 z-10 bg-white/80 rounded-full p-1"
+                            v-if="currentTheme === theme.name"
+                            v-html="tickIcon">
+                        </div>
+
+                        <!-- checkbox untuk delete mode -->
+                        <div class="absolute top-1 left-1 z-10" v-if="deleteMode">
+                            <input type="checkbox"
+                                v-model="theme.isChecked"
+                                @click.stop
+                                class="form-checkbox h-4 w-4 text-red-600 rounded border-gray-300 shadow-sm focus:ring-red-500">
+                        </div>
+
+
+                        <!-- navbar tipis -->
+                        <div class="navbar h-3 w-full" style="background: var(--navbar-bg)"></div>
+
+                        <!-- isi kartu -->
+                        <div class="p-2 space-y-2">
+                            <div class="toolbar h-4 w-full rounded"
+                                style="background: var(--input-bg)">
+                            <span class="primary inline-block h-3 w-1/4 rounded"
+                                    style="background: var(--primary-color)"></span>
                             </div>
+
+                            <div class="foreground h-3 w-full rounded"
+                                style="background: var(--input-bg)"></div>
+                            <div class="foreground h-3 w-2/3 rounded"
+                                style="background: var(--input-bg)"></div>
+                        </div>
+                        </div>
+
+                        <!-- label -->
+                        <div class="mt-2 text-center text-sm font-medium">
+                        {{ theme.theme_name }}
                         </div>
                     </div>
                 </div>
-            `
+                `
+
         }).mount(container);
     }
 

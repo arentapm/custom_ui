@@ -5,13 +5,6 @@ app_description = "custom_ui"
 app_email = "arentaputri388@gmail.com"
 app_license = "mit"
 
-app_include_js = [
-    "/assets/custom_ui/js/theme_loader.js"
-]
-
-app_include_css = [
-    "/assets/custom_ui/css/style.bundle.css",
-]
 
 # Apps
 # ------------------
@@ -32,9 +25,17 @@ app_include_css = [
 # Includes in <head>
 # ------------------
 
+app_include_js = [
+    "/assets/custom_ui/js/theme_loader.js",
+    # "https://cdn.jsdelivr.net/npm/tinycolor2@1.6.0/dist/tinycolor-min.js"
+]
 # include js, css files in header of desk.html
 # app_include_css = "/assets/custom_ui/css/custom_ui.css"
 # app_include_js = "/assets/custom_ui/js/custom_ui.js"
+app_include_css = [
+    "/assets/custom_ui/css/theme_preview.css",
+    "/assets/custom_ui/css/style.css",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/custom_ui/css/custom_ui.css"

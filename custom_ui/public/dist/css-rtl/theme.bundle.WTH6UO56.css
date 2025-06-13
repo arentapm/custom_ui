@@ -1,0 +1,25 @@
+/* ../../../../../tmp/tmp-51903-5Vyge5IkdPwL/custom_ui/custom_ui/public/theme.bundle.css */
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.theme-preview-wrapper {
+  width: 160px;
+}
+.theme-preview {
+  border-radius: 4px;
+  border: 1px solid #d1d8dd;
+  overflow: hidden;
+  cursor: pointer;
+}
+.theme-preview.selected {
+  border-color: var(--primary-color, #29cd42);
+}
+.preview-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  color: var(--primary-color, #29cd42);
+}
+/*# sourceMappingURL=theme.bundle.WTH6UO56.css.map */

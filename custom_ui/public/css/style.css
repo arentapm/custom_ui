@@ -1,0 +1,32 @@
+/* body {
+  background-color: var(--background-color) !important;
+  color: var(--text-color)!important;
+}
+
+.navbar, .navbar-default {
+  background-color: var(--navbar-bg) !important;
+  color: var(--navbar-text-color) !important;
+}
+
+.page-card, .form-layout, .modal-content {
+  background-color: var(--card-bg) !important;
+}
+
+.sidebar-section, .layout-side-section {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--sidebar-text-color) !important;
+}
+
+input, textarea, .form-control {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border-color) !important;
+  color: var(--text-color) !important;
+}
+
+a {
+  color: var(--link-color) !important;
+}
+
+a:hover {
+  color: var(--link-hover-color) !important;
+} */
