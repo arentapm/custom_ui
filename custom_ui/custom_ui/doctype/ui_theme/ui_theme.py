@@ -54,6 +54,8 @@ def generate_variables(base_color: str) -> dict:
     - Checkbox (checked & hover)
     - Badge demo (preview)
     """
+    if not base_color:
+        frappe.throw(_("Base color tidak boleh kosong.")) 
     light = _is_light(base_color)
 
     return {
@@ -74,23 +76,25 @@ class UITheme(Document):
             self.name = self.theme_name.strip()
 
     def validate(self):
-        # 1️⃣ Konversi dict ke JSON string
         self.variables = json.dumps(generate_variables(self.base_color))
 
         if not self.theme_name or not self.theme_name.strip():
             frappe.throw(_("Theme name harus diisi"))
 
-        # 2️⃣ Pastikan nama unik
+        if not re.match("^[A-Za-z0-9 ]+$", self.theme_name):
+            frappe.throw(_("Theme name hanya boleh berisi huruf, angka, dan angka"))
+
+        if not self.base_color or not self.base_color.strip():  
+            frappe.throw(_("Base color harus diisi."))
+
         if (
             frappe.db.exists("UI Theme", self.theme_name)
             and self.name != self.theme_name
         ):
             frappe.throw(_("Theme name must be unique"))
 
-        # 3️⃣ Validasi base color
         _validate_hex(self.base_color or "#29CD42")
 
-        # 4️⃣ Validasi bahwa variables adalah string JSON yang valid
         if isinstance(self.variables, str):
             try:
                 json.loads(self.variables or "{}")
@@ -132,51 +136,6 @@ def get_ui_theme(theme_name):
         "variables": _parse_variables(doc.variables),
     }
 
-
-@frappe.whitelist()
-def add_theme(theme_name, base_color, variables=None):
-    """Tambahkan tema baru."""
-    if not theme_name or not theme_name.strip():
-        frappe.throw(_("Theme name harus diisi"))
-
-    theme_name = theme_name.strip()
-    _validate_hex(base_color)
-
-    if frappe.db.exists("UI Theme", {"theme_name": theme_name}):
-        frappe.throw(_("Theme '{0}' sudah ada").format(theme_name))
-
-    if not variables:
-        variables = generate_variables(base_color)
-    else:
-        variables = _parse_variables(variables)
-
-    doc = frappe.get_doc(
-        {
-            "doctype": "UI Theme",
-            "theme_name": theme_name,
-            "base_color": base_color,
-            "variables": json.dumps(variables),
-        }
-    ).insert(ignore_permissions=True)
-
-    return doc.theme_name
-
-
-@frappe.whitelist()
-def delete_themes(theme_names):
-    """Hapus banyak tema berdasarkan list nama."""
-    if isinstance(theme_names, str):
-        theme_names = json.loads(theme_names or "[]")
-
-    for tn in theme_names:
-        name = frappe.get_value("UI Theme", {"theme_name": tn}, "name")
-        if name:
-            frappe.delete_doc("UI Theme", name, ignore_permissions=True)
-
-    frappe.db.commit()
-    return True
-
-
 @frappe.whitelist()
 def set_active_theme(theme_name: str):
     """Aktifkan tema dan kembalikan variabel ke frontend."""
@@ -186,24 +145,19 @@ def set_active_theme(theme_name: str):
     theme_name = theme_name.strip()
     lower = theme_name.lower()
 
-    # 1) Tema bawaan (Light / Dark / Automatic) ───────────────────────────
     if lower in ("light", "dark", "automatic"):
-        # simpan preferensi user
         frappe.db.set_value(
             "User", frappe.session.user, "desk_theme", lower, update_modified=False
         )
         return {"theme_name": lower, "theme_variables": {}}
 
-    # 2) Tema kustom (DocType UI Theme) ───────────────────────────────────
     doc = frappe.get_doc("UI Theme", {"theme_name": theme_name})
     if not doc:
         frappe.throw(_("Theme '{0}' tidak ditemukan").format(theme_name))
 
-    # non-aktifkan semua, lalu aktifkan tema terpilih
     frappe.db.set_value("UI Theme", {"is_active": 1}, "is_active", 0, update_modified=False)
     frappe.db.set_value("UI Theme", doc.name, "is_active", 1, update_modified=False)
 
-    # pastikan kolom variables sudah serialised (string JSON)
     if isinstance(doc.variables, dict):
         import json
         variables_json = json.dumps(doc.variables or {})
@@ -211,9 +165,7 @@ def set_active_theme(theme_name: str):
     else:
         variables_json = doc.variables or "{}"
 
-    frappe.db.commit()  # selesai semua mutasi
-
-    # ── siapkan payload ke frontend ──────────────────────────────────────
+    frappe.db.commit()  
     variables = _parse_variables(variables_json) or generate_variables(doc.base_color or "#29CD42")
 
     frappe.publish_realtime(

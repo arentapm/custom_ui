@@ -1,6 +1,5 @@
 frappe.provide("frappe.ui");
 
-/* util warna */
 const isLight = (hex) => {
   hex = hex.replace("#", "");
   if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
@@ -17,11 +16,9 @@ const shade = (hex, pct) => {
     .padStart(2, "0")}`.toLowerCase();
 };
 
-/* generate variabel hanya yg dibutuhkan */
 function genVars(base) {
   const light = isLight(base);
   return {
-    // "--primary": base,
     "--primary-color": base,
     "--btn-primary-bg": base,
     "--btn-primary-border": base,
@@ -60,7 +57,6 @@ function applyTheme(vars) {
       const s = document.createElement("style");
       s.id = "custom-theme-override";
       s.innerHTML = `
-        /* ─── Tombol Utama ─────────────────────────────────────── */
           [data-custom-theme="true"] .btn-primary,
           [data-custom-theme="true"] button.btn-primary,
           [data-custom-theme="true"] input[type="submit"].btn-primary {
@@ -78,56 +74,46 @@ function applyTheme(vars) {
             color: var(--btn-primary-color) !important;
           }
 
-          /* UNIVERSAL override – taruh PALING BAWAH stylesheet override */
           [data-custom-theme="true"] input[type="checkbox"]:not(.no-override) {
-            appearance: none !important;
-            -webkit-appearance: none !important;
-            -moz-appearance: none !important;
-
+            accent-color: var(--btn-primary-bg) !important;
             width: 16px;
             height: 16px;
-            border: 1px solid #ccc !important;
-            border-radius: 6px !important;
-            background: #fff !important;
-            position: relative;
+            border-radius: 4px;
             cursor: pointer;
-            transition: background .15s;
-            background-image: none !important;
-            box-shadow: none !important;
-            outline: none !important;
-            accent-color: unset !important;
-
+            transition: all 0.15s ease-in-out;
+            appearance: auto !important;
+            background-image: initial !important;
+            outline: none !important; 
           }
 
-          [data-custom-theme="true"] input[type="checkbox"]:checked:not(.no-override) {
-            background: var(--btn-primary-bg) !important;
+          [data-custom-theme="true"] input[type="checkbox"]:focus-visible:not(.no-override) {
+            outline: 2px solid var(--btn-primary-bg);
+            outline-offset: 2px;
           }
 
-          [data-custom-theme="true"] input[type="checkbox"]:checked:not(.no-override)::after {
-            content: "✓";
-            color: var(--btn-primary-color);
-            font-size: 12px;
-            font-weight: 700;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -55%);
-            pointer-events: none;
+          [data-custom-theme="true"] input[type="checkbox"]:hover:not(:disabled):not(.no-override) {
+            filter: brightness(0.95);
           }
 
-          /* disabled */
-          input[type="checkbox"]:disabled:not(.no-override) {
-            opacity: .45;
+          [data-custom-theme="true"] input[type="checkbox"]:disabled:not(.no-override) {
+            opacity: 0.45;
             cursor: not-allowed;
-          }  /* ←––  KURUNG PENUTUP YANG HILANG */
-
-          /* singkirkan gradient bawaan */
-          input[type="checkbox"] {
-            background-image: none !important;
           }
 
-          [data-custom-theme="true"] .list-tag-preview {
-            color: inherit !important;
+          [data-custom-theme="true"] input[type="checkbox"].grid-row-check {
+            accent-color: var(--primary-color) !important;
+            outline: none !important;
+            appearance: auto !important;
+            background-image: initial !important;
+          }
+
+          [data-custom-theme="true"] input[type="checkbox"] {
+            background-image: initial !important;
+            appearance: auto !important;
+          }
+
+          [data-custom-theme="true"] .link-option {
+            color: var(--primary-color) !important;
           }
 
    `;
@@ -137,18 +123,14 @@ function applyTheme(vars) {
 }
 
 function forceCheckboxAccent() {
-  // Ambil warna dasar dari :root
   const bg = getComputedStyle(document.documentElement)
                 .getPropertyValue('--btn-primary-bg').trim();
-
-  // Set accentColor (Chrome, Firefox, Edge) + border inline
   document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     try { cb.style.accentColor = bg; } catch(_) {}
     cb.style.borderColor = bg;
   });
 }
 
-/* load theme first time */
 async function loadActiveTheme() {
   const name = localStorage.getItem("active-theme-name");
   const j = localStorage.getItem("active-theme-vars");
@@ -158,13 +140,12 @@ async function loadActiveTheme() {
       const vars = JSON.parse(j);
       applyTheme(vars);
       document.documentElement.setAttribute("data-theme-mode", name);
-      return; // stop di sini kalau berhasil dari localStorage
+      return; 
     } catch(e) {
       console.warn("Gagal parse localStorage theme:", e);
     }
   }
 
-  // fallback ke backend
   const { message } = await frappe.call(
     "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme"
   );
@@ -175,13 +156,11 @@ async function loadActiveTheme() {
   applyTheme(vars);
   document.documentElement.setAttribute("data-theme-mode", message.theme_name?.toLowerCase() || "light");
 
-  // simpan ulang ke localStorage
   localStorage.setItem("active-theme-name", (message.theme_name || "light").toLowerCase());
   localStorage.setItem("active-theme-vars", JSON.stringify(vars));
 }
 document.addEventListener("DOMContentLoaded", loadActiveTheme);
 
-/* realtime update */
 frappe.realtime.on("custom_theme_updated", ({ base_color, variables }) => {
   const vars =
     Object.keys(variables || {}).length ? variables : genVars(base_color);
@@ -189,7 +168,6 @@ frappe.realtime.on("custom_theme_updated", ({ base_color, variables }) => {
 });
 
 
-// Setup realtime listener supaya update tema otomatis jika backend publish event
 function setupRealtimeThemeListener() {
   if (!frappe.realtime) return;
 
@@ -203,13 +181,11 @@ function setupRealtimeThemeListener() {
   });
 }
 
-// Init function: load theme dan setup listener
 function initThemeLoader() {
   loadActiveTheme();
   setupRealtimeThemeListener();
 }
 
-// Run saat dokumen siap (atau panggil secara manual)
 document.addEventListener("DOMContentLoaded", initThemeLoader);
 
 function clearCustomTheme() {
@@ -225,8 +201,8 @@ function clearCustomTheme() {
 frappe.ui.ThemeSwitcher = class ThemeSwitcher {
     constructor() {
         this._build_dialog();
-        this._load_active(); // load from localStorage
-        this.refresh(); // fetch themes + render
+        this._load_active(); 
+        this.refresh(); 
     }
 
     _build_dialog() {
@@ -365,10 +341,7 @@ frappe.ui.ThemeSwitcher = class ThemeSwitcher {
         const obj = this.themes.find(t => t.name === theme_name);
         if (!obj) return;
 
-        // 1️⃣ Terapkan langsung di client
-        this._apply(obj);                     // <– kembali ke cara lama
-
-        // 2️⃣ Simpan & broadcast ke server
+        this._apply(obj);  
         frappe.call({
           method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.set_active_theme",
           args: { theme_name: obj.name }
@@ -400,9 +373,9 @@ frappe.ui.ThemeSwitcher = class ThemeSwitcher {
         this._save(null, this.current_theme);
         frappe.show_alert(__("Theme Changed"), 3);
          if (this.current_theme === "automatic") {
-          frappe.ui.set_theme();            // biarkan ERPNext memilih
+          frappe.ui.set_theme();           
         } else {
-          frappe.ui.set_theme(true);        // paksa light/dark asli
+          frappe.ui.set_theme(true);        
         }
     }
 
@@ -459,7 +432,7 @@ frappe.ui.ThemeSwitcher = class ThemeSwitcher {
     }
 
     _apply_current() {
-        if (this.current_theme === "custom_dynamic") return; // sudah applied
+        if (this.current_theme === "custom_dynamic") return;
         const obj = this.themes.find((t) => t.name === this.current_theme);
         if (obj) {
             const baseColor = obj.base || getPrimaryColor(obj.variables);

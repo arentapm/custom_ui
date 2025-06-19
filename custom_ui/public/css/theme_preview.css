@@ -1,0 +1,27 @@
+/* .theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.theme-preview-wrapper {
+  width: 160px;
+}
+
+.theme-preview {
+  border-radius: 4px;
+  border: 1px solid #d1d8dd;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.theme-preview.selected {
+  border-color: var(--primary-color, #29cd42);
+}
+
+.preview-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--primary-color, #29cd42);
+} */

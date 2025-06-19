@@ -97,16 +97,13 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     if (matchedTheme) await this.applyTheme(matchedTheme);
                 }
 
-                // Setup event realtime untuk update tema otomatis
                 frappe.realtime.on("custom_theme_updated", async ({ theme_name }) => {
                     console.log("🔔 Tema baru diterapkan:", theme_name);
                     await this.loadActiveTheme();
                 });
 
-                // Tambah listener keyboard jika ada fungsi handle (asumsi boundHandleKeydown sudah didefinisikan)
                 window.addEventListener('keydown', this.boundHandleKeydown);
                 
-                // Listener route change untuk apply tema (jika ada perubahan route)
                 if (frappe.router) {
                     frappe.router.on("change", () => {
                         setTimeout(() => {
@@ -117,42 +114,18 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
             },
 
             async mounted() {
-                // Load tambahan script theme_loader.js jika perlu
-                // const script = document.createElement("script");
-                // script.src = "/assets/custom_ui/js/theme_loader.js";
-                // script.onload = () => {
-                //     console.log("Custom shortcuts loaded!");
-                // };
-                // document.head.appendChild(script);
 
                 await this.loadActiveTheme();
 
-                // Blokir search default ERPNext, jaga terus dengan interval
                 setTimeout(() => {
                     if (frappe.ui?.keys?.unbind) {
                         frappe.ui.keys.unbind('ctrl+shift+g');
+                        console.log("Shortcut Ctrl+Shift+G berhasil dinonaktifkan");
                     }
-                    const disableSearchDialog = () => {
-                        const dummy = function () {
-                            console.warn('ERPNext default search dialog diblokir secara permanen');
-                        };
-                        if (frappe.desk?.global_search?.search_dialog) {
-                            frappe.desk.global_search.search_dialog.show = dummy;
-                        }
-                        if (frappe.search && frappe.search.show) {
-                            frappe.search.show = dummy;
-                        }
-                    };
-                    disableSearchDialog();
-                    this._searchBlockInterval = setInterval(disableSearchDialog, 2000);
-                    console.log("Search bawaan ERPNext diblokir & dijaga terus menerus");
                 }, 300);
             },
 
             beforeUnmount() {
-                if ( this.searchBlockInterval) {
-                    clearInterval(this._searchBlockInterval);
-                }
                 window.removeEventListener('keydown', this.boundHandleKeydown);
             },
 
@@ -187,12 +160,10 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                             console.error(`❌ Gagal ambil detail theme ${theme_name}`, e);
                         }
 
-                        /* ── fallback jika variables kosong ───────────────── */
                         if (!Object.keys(variables).length) {
                             variables = genVars(base_color);
                         }
 
-                        /* ── buat inline CSS vars utk thumbnail ───────────── */
                         const generatedVars = genVars(base_color);
                         const cssVars = Object.entries(generatedVars)
                             .map(([key, value]) => `${key}: ${value}`)
@@ -233,11 +204,9 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     },
 
                     _injectStyle(cssContent, styleId) {
-                    // Hapus dulu style lama jika ada
                     const oldStyle = document.getElementById(styleId);
                     if (oldStyle) oldStyle.remove();
 
-                    // Buat tag style baru dan inject ke head
                     const styleTag = document.createElement("style");
                     styleTag.id = styleId;
                     styleTag.innerText = cssContent;
@@ -245,7 +214,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     },
 
                     _removeInjectedThemeStyles() {
-                    // Bersihkan semua style yang punya atribut data-theme-style atau id 'active-theme-style'
                     document.querySelectorAll('style[data-theme-style="true"], style#active-theme-style').forEach(e => e.remove());
                     },
 
@@ -254,7 +222,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
 
                     Object.entries(variables).forEach(([key, val]) => {
                         const value = val || "#000000";
-                        // key harus diawali '--' sesuai konvensi CSS variable
                         if (!key.startsWith("--")) {
                         console.warn(`⚠️ Variable CSS tidak valid (harus mulai dengan --): ${key}`);
                         return;
@@ -263,11 +230,9 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     });
                     },
 
-                    // Contoh cara integrasi realtime di mounted() atau created()
                     mounted() {
                     this.loadActiveTheme();
 
-                    // Listen realtime event dari backend supaya tema auto refresh saat berubah
                     frappe.realtime.on("custom_theme_updated", async ({ theme_name }) => {
                         console.log("🔔 Tema baru diterapkan:", theme_name);
                         await this.loadActiveTheme();
@@ -285,7 +250,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                         args: { theme_name: theme.theme_name }
                     });
 
-                    // Update UI
                     this.themes.forEach(t => t.isChecked = false);
                     theme.isChecked = true;
                     this.currentTheme = theme.name;
@@ -299,15 +263,12 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                           ? theme.variables
                           : genVars(theme.base_color || "#29CD42");
                     
-                      // ② pakai applyTheme() dari theme_loader.js
-                      //    -> otomatis set data-custom-theme + inject style + force checkbox
                       if (typeof applyTheme === "function") {
                           applyTheme(vars);
                        } else {
                           console.error("applyTheme() not found; pastikan theme_loader.js sudah termuat");
                       }
-                    
-                      // ③ simpan ke localStorage (opsional)
+
                       localStorage.setItem("active_theme_variables", JSON.stringify(vars));
                     
                       console.log(`✅ Tema '${theme.theme_name}' diterapkan via applyTheme`);
@@ -322,9 +283,22 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                     ],
                     primary_action_label: 'Save',
                     primary_action: async (values) => {
-                    // Panggil generateDerivedColors langsung pakai base_color dari input user
-                    const variables = genVars(values.base_color);
+                        const name = values.theme_name.trim();
+                        const pattern = /^[A-Za-z0-9 ]+$/;
+                         if (!name) {
+                            frappe.msgprint("Nama tema tidak boleh kosong.");
+                            return;
+                        }
 
+                        if (!pattern.test(name)) {
+                            frappe.msgprint("Nama tema hanya boleh mengandung huruf, angka, dan spasi.");
+                            return;
+                        }
+                        if (!values.base_color || !values.base_color.trim()){
+                            frappe.msgprint("Base color harus diisi!!");
+                            return;
+                        }
+                    const variables = genVars(values.base_color);
                     await frappe.call({
                         method: 'frappe.client.insert',
                         args: {
@@ -367,7 +341,7 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                                         method: 'frappe.client.delete',
                                         args: {
                                             doctype: 'UI Theme',
-                                            name: theme.name    // ← ini sekarang pasti valid karena == theme_name
+                                            name: theme.name    
                                         }
                                     });
                                     console.log(`✅ Theme ${theme.name} deleted`);
@@ -388,7 +362,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
 			},
             template: `
                 <div class="space-y-6">
-                    <!-- Toolbar -->
                     <div class="flex items-center gap-2 mb-2">
                     <button class="btn btn-primary" @click="openAddDialog">+ Add Theme</button>
 
@@ -411,7 +384,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                         class="cursor-pointer select-none"
                         @click="applyTheme(theme)">
 
-                        <!-- kartu -->
                         <div class="theme-thumb w-full h-40 rounded-lg shadow border relative overflow-hidden"
                             :class="currentTheme === theme.name ? 'ring-2 ring-blue-400' : ''"
                             :style="theme.cssVars">
@@ -422,7 +394,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                             v-html="tickIcon">
                         </div>
 
-                        <!-- checkbox untuk delete mode -->
                         <div class="absolute top-1 left-1 z-10" v-if="deleteMode">
                             <input type="checkbox"
                                 v-model="theme.isChecked"
@@ -431,10 +402,8 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                         </div>
 
 
-                        <!-- navbar tipis -->
                         <div class="navbar h-3 w-full" style="background: var(--navbar-bg)"></div>
 
-                        <!-- isi kartu -->
                         <div class="p-2 space-y-2">
                             <div class="toolbar h-4 w-full rounded"
                                 style="background: var(--input-bg)">
@@ -449,7 +418,6 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                         </div>
                         </div>
 
-                        <!-- label -->
                         <div class="mt-2 text-center text-sm font-medium">
                         {{ theme.theme_name }}
                         </div>
