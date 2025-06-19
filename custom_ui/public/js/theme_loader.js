@@ -40,6 +40,11 @@ function getPrimaryColor(vars = {}) {
 }
 
 function applyTheme(vars) {
+  const mode = document.documentElement.getAttribute("data-theme-mode");
+  if (["light", "dark", "automatic"].includes(mode)){
+    return;
+  }
+  if (!vars || Object.keys(vars).length === 0) return;
   document.documentElement.setAttribute("data-custom-theme", "true")
 
    let vtag = document.getElementById("custom-theme-vars");
@@ -135,7 +140,7 @@ async function loadActiveTheme() {
   const name = localStorage.getItem("active-theme-name");
   const j = localStorage.getItem("active-theme-vars");
 
-  if (name && j) {
+  if (name && j && !["light", "dark", "automatic"].includes(name)) {
     try {
       const vars = JSON.parse(j);
       applyTheme(vars);
@@ -149,23 +154,25 @@ async function loadActiveTheme() {
   const { message } = await frappe.call(
     "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme"
   );
-  const vars =
-    Object.keys(message.variables || {}).length
-      ? message.variables
-      : genVars(message.base_color || "#29CD42");
-  applyTheme(vars);
-  document.documentElement.setAttribute("data-theme-mode", message.theme_name?.toLowerCase() || "light");
+  const themeName = message.theme_name?.toLowerCase() || "light";
+    if (["light", "dark", "automatic"].includes(themeName)) {
+    clearCustomTheme();  // 💣 Hapus style hijau
+    localStorage.removeItem("active-theme-name");
+    localStorage.removeItem("active-theme-vars");
+    document.documentElement.setAttribute("data-theme-mode", themeName);
+    frappe.ui.set_theme(true); // Pakai asli bawaan ERPNext
+    return;
+  }
 
-  localStorage.setItem("active-theme-name", (message.theme_name || "light").toLowerCase());
+  const vars = Object.keys(message.variables || {}).length
+    ? message.variables
+    : genVars(message.base_color || "#29CD42");
+
+  applyTheme(vars);
+  localStorage.setItem("active-theme-name", themeName);
   localStorage.setItem("active-theme-vars", JSON.stringify(vars));
-}
-document.addEventListener("DOMContentLoaded", loadActiveTheme);
-
-frappe.realtime.on("custom_theme_updated", ({ base_color, variables }) => {
-  const vars =
-    Object.keys(variables || {}).length ? variables : genVars(base_color);
-  applyTheme(vars);
-});
+  document.documentElement.setAttribute("data-theme-mode", themeName);
+  }
 
 
 function setupRealtimeThemeListener() {
@@ -173,6 +180,10 @@ function setupRealtimeThemeListener() {
 
   frappe.realtime.on("custom_theme_updated", (data) => {
     console.log("Theme updated realtime:", data);
+    const current = localStorage.getItem("active-theme-name");
+    if (!current || ["light","dark", "automatic"].includes(current)) {
+      return;
+    }
     const base_color = data.base_color || "#29CD42";
     const vars = genVars(base_color);
     applyTheme(vars);
@@ -196,7 +207,17 @@ function clearCustomTheme() {
   document.documentElement.removeAttribute("data-custom-theme");
 }
 
+function forceThemeRefresh(themeName, vars) {
+  clearCustomTheme();
+  document.documentElement.removeAttribute("data-theme"); // 💣 bersihin tema bawaan
+  document.documentElement.removeAttribute("data-theme-mode");
 
+  applyTheme(vars);
+
+  document.documentElement.setAttribute("data-theme-mode", themeName);
+  localStorage.setItem("active-theme-name", themeName);
+  localStorage.setItem("active-theme-vars", JSON.stringify(vars));
+}
 
 frappe.ui.ThemeSwitcher = class ThemeSwitcher {
     constructor() {
@@ -342,9 +363,11 @@ frappe.ui.ThemeSwitcher = class ThemeSwitcher {
         if (!obj) return;
 
         this._apply(obj);  
+
         frappe.call({
           method: "custom_ui.custom_ui.doctype.ui_theme.ui_theme.set_active_theme",
-          args: { theme_name: obj.name }
+          args: { theme_name: obj.name },
+          return: false
         });
       }
 
@@ -359,9 +382,8 @@ frappe.ui.ThemeSwitcher = class ThemeSwitcher {
                 ...genVars(baseColor),
                 ...theme.variables,
             };
-            applyTheme(vars);
+            forceThemeRefresh(theme.name, vars);
             this.current_theme = theme.name;
-            this._save(vars, theme.name);
             frappe.show_alert(__("Custom Theme Applied"), 3);
             return;
         }

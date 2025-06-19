@@ -146,9 +146,9 @@ def set_active_theme(theme_name: str):
     lower = theme_name.lower()
 
     if lower in ("light", "dark", "automatic"):
-        frappe.db.set_value(
-            "User", frappe.session.user, "desk_theme", lower, update_modified=False
-        )
+        frappe.db.set_value("UI Theme", {"is_active": 1}, "is_active", 0, update_modified=False)
+        frappe.db.set_value( "User", frappe.session.user, "desk_theme", lower, update_modified=False)
+        frappe.db.commit()
         return {"theme_name": lower, "theme_variables": {}}
 
     doc = frappe.get_doc("UI Theme", {"theme_name": theme_name})
@@ -179,24 +179,34 @@ def set_active_theme(theme_name: str):
 
     return {
         "theme_name": doc.theme_name,
+        "base_color": doc.base_color,
         "theme_variables": variables,
     }
 
 @frappe.whitelist()
 def get_active_theme():
     """Ambil tema aktif (lengkap dengan variables)."""
-    name = frappe.db.get_value("UI Theme", {"is_active": 1}, "name")
-    if not name:
-        return {
-            "theme_name": "Light",
+    user_theme = frappe.db.get_value("User", frappe.session.user, "desk_theme") or "Light"
+    if user_theme.lower() in ("dark", "light", "automatic"):
+        return{
+            "theme_name": user_theme.title(),
             "base_color": "#29CD42",
             "variables": {},
-            "is_default": True,
+            "is_default": True
         }
 
-    doc = frappe.get_doc("UI Theme", name)
+    name = frappe.db.get_value("UI Theme", {"is_active": 1}, "name")
+    if name:
+        doc = frappe.get_doc("UI Theme", name)
+        return {
+            "theme_name": doc.theme_name,
+            "base_color": doc.base_color,
+            "variables": _parse_variables(doc.variables),
+        }
+
     return {
-        "theme_name": doc.theme_name,
-        "base_color": doc.base_color,
-        "variables": _parse_variables(doc.variables),
+        "theme_name": "Light",
+        "base_color": "#29CD42",
+        "variables": {},
+        "is_default": True,
     }
