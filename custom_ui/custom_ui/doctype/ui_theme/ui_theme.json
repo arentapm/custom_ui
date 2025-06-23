@@ -29,10 +29,16 @@
     "options": "JSON"
   },
   {
-    "label": "Is Active",
     "fieldname": "is_active",
+    "label": "Is Active (Hidden)",
     "fieldtype": "Check",
-    "default": 0
+    "hidden": 1
+  },
+  {
+    "fieldname": "is_active_display",
+    "label": "Is Active",
+    "fieldtype": "HTML",
+    "read_only": 1
   }
 
  ],

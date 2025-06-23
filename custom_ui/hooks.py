@@ -29,6 +29,12 @@ app_include_js = [
     "/assets/custom_ui/js/theme_loader.js",
     # "https://cdn.jsdelivr.net/npm/tinycolor2@1.6.0/dist/tinycolor-min.js"
 ]
+
+# doc_events = {
+#     "UI Theme": {
+#         "on_update": "custom_ui.custom_ui.doctype.ui_theme.ui_theme.on_ui_theme_update"
+#     }
+# }
 # include js, css files in header of desk.html
 # app_include_css = "/assets/custom_ui/css/custom_ui.css"
 # app_include_js = "/assets/custom_ui/js/custom_ui.js"

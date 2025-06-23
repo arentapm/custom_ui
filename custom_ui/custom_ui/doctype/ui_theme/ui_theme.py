@@ -48,12 +48,6 @@ def _contrast_text(hex_color: str) -> str:
 
 
 def generate_variables(base_color: str) -> dict:
-    """
-    Hanya menghasilkan variabel yang diperlukan untuk:
-    - Tombol utama (.btn-primary)
-    - Checkbox (checked & hover)
-    - Badge demo (preview)
-    """
     if not base_color:
         frappe.throw(_("Base color tidak boleh kosong.")) 
     light = _is_light(base_color)
@@ -71,11 +65,25 @@ def generate_variables(base_color: str) -> dict:
     }
 
 class UITheme(Document):
+    def on_trash(self):
+        if self.is_active:
+            frappe.db.set_value("User", frappe.session.user, "desk_theme", "light", update_modified=False)
+            frappe.db.commit()
+            frappe.publish_realtime("custom_theme_updated", {
+                "theme_name": "light",
+                "base_color": "#29CD42",
+                "variables": {}
+            })
+
     def autoname(self):
         if self.theme_name:
             self.name = self.theme_name.strip()
 
     def validate(self):
+        if self.is_active:
+            existing = frappe.db.exists("UI Theme", {"is_active": 1, "name": ["!=", self.name]})
+        if existing:
+            frappe.throw(_("Tema aktif sudah ada. Hanya satu tema yang boleh aktif dalam satu waktu."))
         self.variables = json.dumps(generate_variables(self.base_color))
 
         if not self.theme_name or not self.theme_name.strip():
@@ -87,11 +95,17 @@ class UITheme(Document):
         if not self.base_color or not self.base_color.strip():  
             frappe.throw(_("Base color harus diisi."))
 
+        if self.is_active:
+            frappe.db.sql("UPDATE `tabUI Theme` SET is_active = 0 WHERE 1=1")
+            frappe.db.set_value("UI Theme", self.name, "is_active", 1)
+
         if (
             frappe.db.exists("UI Theme", self.theme_name)
             and self.name != self.theme_name
         ):
             frappe.throw(_("Theme name must be unique"))
+            
+        self.variables = json.dumps(generate_variables(self.base_color))
 
         _validate_hex(self.base_color or "#29CD42")
 
@@ -101,13 +115,22 @@ class UITheme(Document):
             except json.JSONDecodeError:
                 frappe.throw(_("Field variables harus berupa JSON valid"))
 
+
     def before_save(self):
-        """
-        Isi otomatis `variables` jika kosong,
-        menggunakan `generate_variables(self.base_color)`.
-        """
+        if self.is_active:
+            frappe.db.sql("""
+                UPDATE `tabUI Theme`
+                SET is_active = 0
+                WHERE name != %s
+            """, (self.name,))
+        else:
+            # Jika tidak aktif, pastikan tidak ada tema lain yang aktif (untuk safety)
+            if not frappe.db.exists("UI Theme", {"is_active": 1, "name": ["!=", self.name]}):
+                self.is_active = 1
         if not self.variables and self.base_color:
             self.variables = json.dumps(generate_variables(self.base_color), indent=2)
+        if not frappe.flags.in_set_active_theme:
+            self.is_active = frappe.db.get_value("UI Theme", self.name, "is_active")
 
 @frappe.whitelist()
 def get_all_themes():
@@ -138,44 +161,50 @@ def get_ui_theme(theme_name):
 
 @frappe.whitelist()
 def set_active_theme(theme_name: str):
-    """Aktifkan tema dan kembalikan variabel ke frontend."""
+    """Aktifkan satu tema dan nonaktifkan lainnya."""
+
+    frappe.log_error(f"Menjalankan set_active_theme untuk: {theme_name}", "DEBUG_THEME")
+
     if not theme_name:
         frappe.throw(_("theme_name required"))
 
     theme_name = theme_name.strip()
     lower = theme_name.lower()
 
+    # 1. Jika pakai tema bawaan (Light, Dark, Automatic)
     if lower in ("light", "dark", "automatic"):
-        frappe.db.set_value("UI Theme", {"is_active": 1}, "is_active", 0, update_modified=False)
-        frappe.db.set_value( "User", frappe.session.user, "desk_theme", lower, update_modified=False)
+        frappe.db.sql("UPDATE `tabUI Theme` SET is_active = 0 WHERE is_active = 1")
+        frappe.db.set_value("User", frappe.session.user, "desk_theme", lower, update_modified=False)
         frappe.db.commit()
-        return {"theme_name": lower, "theme_variables": {}}
 
-    doc = frappe.get_doc("UI Theme", {"theme_name": theme_name})
-    if not doc:
+        return {
+            "theme_name": lower,
+            "base_color": "#29CD42",
+            "theme_variables": {},
+        }
+
+    # 2. Cek apakah tema ada
+    if not frappe.db.exists("UI Theme", {"theme_name": theme_name}):
         frappe.throw(_("Theme '{0}' tidak ditemukan").format(theme_name))
 
-    frappe.db.set_value("UI Theme", {"is_active": 1}, "is_active", 0, update_modified=False)
-    frappe.db.set_value("UI Theme", doc.name, "is_active", 1, update_modified=False)
+    # 3. Ambil dokumen tema
+    doc = frappe.get_doc("UI Theme", {"theme_name": theme_name})
 
-    if isinstance(doc.variables, dict):
-        import json
-        variables_json = json.dumps(doc.variables or {})
-        frappe.db.set_value("UI Theme", doc.name, "variables", variables_json, update_modified=False)
-    else:
-        variables_json = doc.variables or "{}"
+    # 4. Nonaktifkan semua tema lain
+    frappe.db.sql("UPDATE `tabUI Theme` SET is_active = 0 WHERE 1=1")
 
-    frappe.db.commit()  
-    variables = _parse_variables(variables_json) or generate_variables(doc.base_color or "#29CD42")
-
-    frappe.publish_realtime(
-        "custom_theme_updated",
-        {
-            "theme_name": doc.theme_name,
-            "base_color": doc.base_color,
-            "variables": variables,
-        },
-    )
+    # 5. Tandai tema ini sebagai aktif & simpan
+    frappe.flags.in_set_active_theme = True
+    doc.is_active = 1
+    doc.save(ignore_permissions=True)
+    frappe.flags.in_set_active_theme = False
+    frappe.db.set_value("User", frappe.session.user, "desk_theme", "", update_modified=False)
+    variables = _parse_variables(doc.variables) or generate_variables(doc.base_color or "#29CD42")
+    frappe.publish_realtime("custom_theme_updated", {
+        "theme_name": doc.theme_name,
+        "base_color": doc.base_color,
+        "variables": variables,
+    })
 
     return {
         "theme_name": doc.theme_name,
@@ -185,28 +214,33 @@ def set_active_theme(theme_name: str):
 
 @frappe.whitelist()
 def get_active_theme():
-    """Ambil tema aktif (lengkap dengan variables)."""
-    user_theme = frappe.db.get_value("User", frappe.session.user, "desk_theme") or "Light"
-    if user_theme.lower() in ("dark", "light", "automatic"):
-        return{
-            "theme_name": user_theme.title(),
-            "base_color": "#29CD42",
-            "variables": {},
-            "is_default": True
-        }
 
     name = frappe.db.get_value("UI Theme", {"is_active": 1}, "name")
-    if name:
+    if name and frappe.db.exists("UI Theme", name):
         doc = frappe.get_doc("UI Theme", name)
         return {
             "theme_name": doc.theme_name,
             "base_color": doc.base_color,
             "variables": _parse_variables(doc.variables),
+            "is_default": False
+        }
+
+    user_theme = frappe.db.get_value("User", frappe.session.user, "desk_theme") or "light"
+    if user_theme.lower() in ("light", "dark", "automatic"):
+        return {
+            "theme_name": user_theme.lower(),
+            "base_color": "#29CD42",
+            "variables": {},
+            "is_default": True
         }
 
     return {
-        "theme_name": "Light",
+        "theme_name": "light",
         "base_color": "#29CD42",
         "variables": {},
-        "is_default": True,
+        "is_default": True
     }
+
+
+
+

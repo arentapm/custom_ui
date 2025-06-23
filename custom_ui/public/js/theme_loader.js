@@ -138,42 +138,42 @@ function forceCheckboxAccent() {
 
 async function loadActiveTheme() {
   const name = localStorage.getItem("active-theme-name");
-  const j = localStorage.getItem("active-theme-vars");
+  const raw = localStorage.getItem("active-theme-vars");
 
-  if (name && j && !["light", "dark", "automatic"].includes(name)) {
+  if (name && raw && !["light", "dark", "automatic"].includes(name)) {
     try {
-      const vars = JSON.parse(j);
+      const vars = JSON.parse(raw);
       applyTheme(vars);
       document.documentElement.setAttribute("data-theme-mode", name);
-      return; 
-    } catch(e) {
-      console.warn("Gagal parse localStorage theme:", e);
+      return;
+    } catch (e) {
+      console.warn("⚠️ Gagal parse local theme:", e);
     }
   }
 
-  const { message } = await frappe.call(
-    "custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme"
-  );
-  const themeName = message.theme_name?.toLowerCase() || "light";
+  try {
+    const { message: theme } = await frappe.call("custom_ui.custom_ui.doctype.ui_theme.ui_theme.get_active_theme");
+    const themeName = theme.theme_name || "light";
+    const vars = Object.keys(theme.variables || {}).length
+      ? theme.variables
+      : genVars(theme.base_color || "#29CD42");
+
     if (["light", "dark", "automatic"].includes(themeName)) {
-    clearCustomTheme();  // 💣 Hapus style hijau
-    localStorage.removeItem("active-theme-name");
-    localStorage.removeItem("active-theme-vars");
-    document.documentElement.setAttribute("data-theme-mode", themeName);
-    frappe.ui.set_theme(true); // Pakai asli bawaan ERPNext
-    return;
+      clearCustomTheme();
+      localStorage.removeItem("active-theme-name");
+      localStorage.removeItem("active-theme-vars");
+      document.documentElement.setAttribute("data-theme-mode", themeName);
+      frappe.ui.set_theme(true);
+    } else {
+      applyTheme(vars);
+      localStorage.setItem("active-theme-name", themeName);
+      localStorage.setItem("active-theme-vars", JSON.stringify(vars));
+      document.documentElement.setAttribute("data-theme-mode", themeName);
+    }
+  } catch (e) {
+    console.warn("Gagal mengambil tema aktif dari server:", e);
   }
-
-  const vars = Object.keys(message.variables || {}).length
-    ? message.variables
-    : genVars(message.base_color || "#29CD42");
-
-  applyTheme(vars);
-  localStorage.setItem("active-theme-name", themeName);
-  localStorage.setItem("active-theme-vars", JSON.stringify(vars));
-  document.documentElement.setAttribute("data-theme-mode", themeName);
-  }
-
+}
 
 function setupRealtimeThemeListener() {
   if (!frappe.realtime) return;
@@ -197,6 +197,14 @@ function initThemeLoader() {
   setupRealtimeThemeListener();
 }
 
+if (window.frappe && frappe.router) {
+  frappe.router.on("change", () => {
+    setTimeout(() => {
+      loadActiveTheme();
+    }, 200);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", initThemeLoader);
 
 function clearCustomTheme() {
@@ -209,7 +217,7 @@ function clearCustomTheme() {
 
 function forceThemeRefresh(themeName, vars) {
   clearCustomTheme();
-  document.documentElement.removeAttribute("data-theme"); // 💣 bersihin tema bawaan
+  document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-theme-mode");
 
   applyTheme(vars);
@@ -485,3 +493,5 @@ frappe.ui.set_theme = (forced) => {
 frappe.ui.add_system_theme_switch_listener = () => {
     frappe.ui.dark_theme_media_query.addEventListener("change", () => frappe.ui.set_theme());
 };
+
+

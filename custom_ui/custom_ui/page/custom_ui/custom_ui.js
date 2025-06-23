@@ -172,7 +172,7 @@ frappe.pages['custom_ui'].on_page_load = function (wrapper) {
                         fetchedThemes.push({
                             name: theme_name,
                             theme_name,
-                            is_active: is_active || 0,
+                            is_active: Number(is_active) === 1 ? 1 : 0,
                             variables,
                             cssVars,
                             isChecked: false
