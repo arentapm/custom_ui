@@ -80,6 +80,8 @@ class UITheme(Document):
             self.name = self.theme_name.strip()
 
     def validate(self):
+        existing = None
+        
         if self.is_active:
             existing = frappe.db.exists("UI Theme", {"is_active": 1, "name": ["!=", self.name]})
         if existing:
